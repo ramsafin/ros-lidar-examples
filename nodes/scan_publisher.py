@@ -21,8 +21,8 @@ class WallScanPublisher:
     self.range_max = 4.0          # Максимальная дистанция (м)
 
     # Параметры стены
-    self.wall_distance = 2.0      # Начальная дистанция до стены (м)
-    self.movement_speed = 0.01    # Скорость движения стены (м/итерацию)
+    self.wall_distance = 1.0      # Начальная дистанция до стены (м)
+    self.movement_speed = 0.1    # Скорость движения стены (м/итерацию)
     self.direction = 1            # 1 = стена приближается, -1 = отдаляется
 
     self.rate = rospy.Rate(10)    # 10 Hz
@@ -57,16 +57,16 @@ class WallScanPublisher:
 
     # Меняем направление при достижении границ
     if self.wall_distance < 0.5:
-      self.direction = -1
+      self.direction = 1
       rospy.loginfo("Стена начала отдаляться")
     elif self.wall_distance > 3.0:
-      self.direction = 1
+      self.direction = -1
       rospy.loginfo("Стена начала приближаться")
 
   def get_wall_distance(self, angle: float) -> float:
     """Возвращает расстояние до стены для заданного угла"""
     # Стена обнаруживается только в узком секторе прямо перед лидаром (±5°)
-    if np.abs(angle) < 0.087:  # ~5° в радианах
+    if np.abs(angle) < np.radians(10):
       # Добавляем небольшой шум для реалистичности
       return self.wall_distance + random.uniform(-0.005, 0.005)
 
