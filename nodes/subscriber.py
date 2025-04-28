@@ -1,55 +1,101 @@
 #!/usr/bin/env python3
 # encoding: utf-8
 
-import os
-import cv2
+import numpy as np
+from typing import List, Optional, Tuple
 
 import rospy
-import rospkg
+from sensor_msgs.msg import LaserScan
 
-# http://wiki.ros.org/cv_bridge
-from cv_bridge import CvBridge
+class ObstacleMovementDetector:
+  def __init__(self):
+    rospy.init_node('obstacle_movement_detector')
 
-# http://docs.ros.org/en/api/sensor_msgs/html/msg/Image.html
-from sensor_msgs.msg import Image
+    # Параметры
+    self.prev_distance: Optional[float] = None
+    self.threshold = 0.02  # Порог в метрах
+    self.fov_degrees = 30  # Сектор анализа (±30°)
 
-from typing import Final
+    # Здесь подпишитесь на измерения LiDAR ...
 
-# constants
-ROS_NODE_NAME: Final[str] = "subscriber_py"
-ROS_PACKAGE_PATH: Final[os.PathLike] = rospkg.RosPack().get_path("template")
+  def scan_callback(self, msg: LaserScan) -> None:
+    # Получение данных из сектора
+    frontal_ranges = self.get_frontal_sector(msg.ranges, msg.angle_min, msg.angle_increment)
 
-ROS_IMAGE_TOPIC: Final[str] = "image"
+    if not frontal_ranges:
+      rospy.logwarn("Не удалось получить сканы фронального сектора!")
+      return
 
+    # Минимальное расстояние
+    min_distance = np.min(frontal_ranges)
 
-def image_callback(msg: Image, cv_bridge: CvBridge) -> None:
-  # конвертация ROS-сообщения в OpenCV изображение
-  # Q: Каков формат у изображения?
-  image = cv_bridge.imgmsg_to_cv2(msg)
-  
-  # Задание 2: Реализуйте отображение полученного изображения.
-  # Используйте функции cv2.imshow и cv2.waitKey
+    # Определение движения
+    movement, delta = self.detect_movement(min_distance)
 
+    # Логирование результата
+    self.log_movement(movement, min_distance, delta)
+
+  def get_frontal_sector(self, ranges: List[float], angle_min: float, angle_increment: float) -> List[float]:
+    """
+    Возвращает список расстояний в заданном секторе.
+    Исключает значения inf (бесконечности) и nan.
+    """
+    fov_rad = np.radians(self.fov_degrees)
+    frontal_ranges = []
+
+    # Ваш код здесь:
+    # 1. Пройти по всем измерениям (ranges)
+    # 2. Для каждого измерения вычислить угол
+    # 3. Если угол попадает в сектор ±fov_rad и значение валидно - добавить в frontal_ranges
+
+    return frontal_ranges
+
+  def detect_movement(self, current_distance: float) -> Tuple[str, float]:
+    """
+    Определяет тип движения относительно препятствия.
+    Возвращает тип движения и изменение расстояния.
+    """
+    movement = "stable"
+    delta = 0.0
+
+    if self.prev_distance is not None:
+      delta = self.prev_distance - current_distance
+
+      # 1. Сравнить delta с threshold
+      # 2. Определить movement ("approaching", "receding" или "stable")
+
+    self.prev_distance = current_distance
+    return movement, delta
+
+  def log_movement(self, movement: str, distance: float, delta: float) -> None:
+    """
+    Логирует результат с цветовой подсветкой для терминала.
+    Возможно работающий код...
+    """
+    colors = {
+      "approaching": "\033[91m",  # Красный
+      "receding": "\033[92m",     # Зелёный
+      "stable": "\033[94m"        # Синий
+    }
+    reset = "\033[0m"
+
+    # Обновляем счётчики
+    if movement == "approaching":
+      self.approach_count += 1
+    elif movement == "receding":
+      self.recede_count += 1
+    else:
+      self.stable_count += 1
+
+    rospy.loginfo(
+      f"{colors[movement]}{movement.upper()}{reset} | "
+      f"Distance: {distance:.2f}m | "
+      f"Change: {delta:.3f}m"
+    )
 
 def main() -> None:
-  rospy.init_node(ROS_NODE_NAME)
-
-  rospy.loginfo(f"ROS package: {ROS_PACKAGE_PATH}")
-  rospy.loginfo(f"OpenCV version: {cv2.__version__}")
-
-  # wait for the images to arrive or throw an exception
-  sample: Image = rospy.wait_for_message(ROS_IMAGE_TOPIC, Image, timeout=3.0)
-  
-  if sample is not None:
-    rospy.loginfo(f"Encoding: {sample.encoding}, Resolution: {sample.width, sample.height}")
-  
-  cv_bridge: CvBridge = CvBridge()
-
-  rospy.Subscriber(ROS_IMAGE_TOPIC, Image, lambda msg: image_callback(msg, cv_bridge), queue_size=None)
-
-  # Q: Что происходит в данной строчке кода?
+  detector = ObstacleMovementDetector()
   rospy.spin()
-
 
 if __name__ == '__main__':
   main()
