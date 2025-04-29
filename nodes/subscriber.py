@@ -22,6 +22,8 @@ class ObstacleMovementDetector:
 
     self.marker_pub = rospy.Publisher('/movement_marker', Marker, queue_size=1)
 
+    # подпишитесь на /scan ...
+
   def scan_callback(self, msg: LaserScan) -> None:
     ranges: np.ndarray = np.array(msg.ranges, dtype=np.float32)
     angles: np.ndarray = msg.angle_min + np.arange(len(ranges)) * msg.angle_increment
