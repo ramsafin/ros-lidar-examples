@@ -13,16 +13,16 @@ class WallScanPublisher:
     self.pub = rospy.Publisher('/scan', LaserScan, queue_size=10)
 
     # Параметры сканирования (аналогично URG-04LX)
-    self.num_readings = 720       # Количество лучей
-    self.angle_min = -np.pi/2        # -90 градусов
-    self.angle_max = np.pi/2         # +90 градусов
+    self.num_readings = 720          # Количество лучей
+    self.angle_min = -np.radians(90) # -90 градусов
+    self.angle_max = np.radians(90)  # +90 градусов
     self.angle_increment = np.pi/720 # Шаг угла
-    self.range_min = 0.05         # Минимальная дистанция (м)
-    self.range_max = 4.0          # Максимальная дистанция (м)
+    self.range_min = 0.05            # Минимальная дистанция (м)
+    self.range_max = 4.0             # Максимальная дистанция (м)
 
     # Параметры стены
     self.wall_distance = 1.0      # Начальная дистанция до стены (м)
-    self.movement_speed = 0.1    # Скорость движения стены (м/итерацию)
+    self.movement_speed = 0.025     # Скорость движения стены (м/итерацию)
     self.direction = 1            # 1 = стена приближается, -1 = отдаляется
 
     self.rate = rospy.Rate(10)    # 10 Hz

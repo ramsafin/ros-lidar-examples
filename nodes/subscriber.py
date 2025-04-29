@@ -2,10 +2,14 @@
 # encoding: utf-8
 
 import numpy as np
-from typing import List, Optional, Tuple
+from typing import Optional, Tuple
 
 import rospy
 from sensor_msgs.msg import LaserScan
+
+from std_msgs.msg import ColorRGBA
+from geometry_msgs.msg import Point
+from visualization_msgs.msg import Marker
 
 class ObstacleMovementDetector:
   def __init__(self):
@@ -13,56 +17,46 @@ class ObstacleMovementDetector:
 
     # Параметры
     self.prev_distance: Optional[float] = None
-    self.threshold = 0.02  # Порог в метрах
-    self.fov_degrees = 30  # Сектор анализа (±30°)
+    self.threshold = 0.02  # порог отсутствия движения (в метрах)
+    self.fov_degrees = 15  # рассматриваемый сектор сканов (±15°)
 
-    # Здесь подпишитесь на измерения LiDAR ...
+    self.marker_pub = rospy.Publisher('/movement_marker', Marker, queue_size=1)
 
   def scan_callback(self, msg: LaserScan) -> None:
-    # Получение данных из сектора
-    frontal_ranges = self.get_frontal_sector(msg.ranges, msg.angle_min, msg.angle_increment)
+    ranges: np.ndarray = np.array(msg.ranges, dtype=np.float32)
+    angles: np.ndarray = msg.angle_min + np.arange(len(ranges)) * msg.angle_increment
 
-    if not frontal_ranges:
-      rospy.logwarn("Не удалось получить сканы фронального сектора!")
-      return
+    frontal_ranges = self.get_frontal_sector(ranges, angles)
 
-    # Минимальное расстояние
-    min_distance = np.min(frontal_ranges)
+    # вычислите минимальное расстояние
+    min_distance = ...
 
-    # Определение движения
+    # определите тип движения
     movement, delta = self.detect_movement(min_distance)
 
-    # Логирование результата
+    # логирование результата
     self.log_movement(movement, min_distance, delta)
 
-  def get_frontal_sector(self, ranges: List[float], angle_min: float, angle_increment: float) -> List[float]:
+    self.publish_marker(movement, min_distance)
+
+  def get_frontal_sector(self, ranges: np.ndarray, angles: np.ndarray) -> np.ndarray:
     """
     Возвращает список расстояний в заданном секторе.
-    Исключает значения inf (бесконечности) и nan.
     """
-    fov_rad = np.radians(self.fov_degrees)
-    frontal_ranges = []
-
-    # Ваш код здесь:
-    # 1. Пройти по всем измерениям (ranges)
-    # 2. Для каждого измерения вычислить угол
-    # 3. Если угол попадает в сектор ±fov_rad и значение валидно - добавить в frontal_ranges
-
-    return frontal_ranges
+    # вычлените измерения из заданного сектора self.fov_degrees
+    # отфильтруйте "плохие" показания (inf, nan, за пределами мин. / макс. расстояний)
+    return None
 
   def detect_movement(self, current_distance: float) -> Tuple[str, float]:
     """
     Определяет тип движения относительно препятствия.
-    Возвращает тип движения и изменение расстояния.
     """
     movement = "stable"
     delta = 0.0
 
     if self.prev_distance is not None:
       delta = self.prev_distance - current_distance
-
-      # 1. Сравнить delta с threshold
-      # 2. Определить movement ("approaching", "receding" или "stable")
+      # вычислите тип движения
 
     self.prev_distance = current_distance
     return movement, delta
@@ -70,7 +64,6 @@ class ObstacleMovementDetector:
   def log_movement(self, movement: str, distance: float, delta: float) -> None:
     """
     Логирует результат с цветовой подсветкой для терминала.
-    Возможно работающий код...
     """
     colors = {
       "approaching": "\033[91m",  # Красный
@@ -79,22 +72,44 @@ class ObstacleMovementDetector:
     }
     reset = "\033[0m"
 
-    # Обновляем счётчики
-    if movement == "approaching":
-      self.approach_count += 1
-    elif movement == "receding":
-      self.recede_count += 1
-    else:
-      self.stable_count += 1
-
     rospy.loginfo(
       f"{colors[movement]}{movement.upper()}{reset} | "
       f"Distance: {distance:.2f}m | "
       f"Change: {delta:.3f}m"
     )
 
+  def publish_marker(self, movement: str, distance: float):
+    marker = Marker()
+    marker.header.frame_id = "laser"
+    marker.header.stamp = rospy.Time.now()
+    marker.ns = "movement_arrow"
+    marker.id = 0
+    marker.type = Marker.ARROW
+    marker.action = Marker.ADD
+
+    # направление стрелки (вперед/назад)
+    start_point = Point(0, 0, 1.2)
+    end_point = Point(-0.3 if movement == "approaching" else 0.3, 0, 1.2)
+
+    marker.points.append(start_point)
+    marker.points.append(end_point)
+
+    marker.scale.x = 0.05  # толщина стрелки
+    marker.scale.y = 0.1   # ширина наконечника
+    marker.scale.z = 0.1
+
+    # цвет (R, G, B, A)
+    if movement == "approaching":
+        marker.color = ColorRGBA(1.0, 0.0, 0.0, 1.0)  # Красный
+    elif movement == "receding":
+        marker.color = ColorRGBA(0.0, 1.0, 0.0, 1.0)  # Зелёный
+    else:
+        marker.color = ColorRGBA(0.5, 0.5, 0.5, 1.0)  # Серый
+
+    self.marker_pub.publish(marker)
+
 def main() -> None:
-  detector = ObstacleMovementDetector()
+  ObstacleMovementDetector()
   rospy.spin()
 
 if __name__ == '__main__':
