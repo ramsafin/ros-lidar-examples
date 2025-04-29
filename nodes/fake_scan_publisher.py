@@ -9,7 +9,7 @@ from sensor_msgs.msg import LaserScan
 
 class WallScanPublisher:
   def __init__(self):
-    rospy.init_node('scan_publisher')
+    rospy.init_node('fake_scan_publisher')
     self.pub = rospy.Publisher('/scan', LaserScan, queue_size=10)
 
     # Параметры сканирования (аналогично URG-04LX)
